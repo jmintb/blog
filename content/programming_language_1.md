@@ -29,7 +29,7 @@ println("Hello World!");
 
 Before we start it is important to have some intuition around the problem space. I assume that you have experience with using one. If you do not then you have my respect for starting your journey with how to build a programming language.
 
-We will focus on compiling and not interpreting with a JIT option for dynamic purposes. Lets build an intuition around compilers.
+We will focus on compiling and not interpreting with a [just in time(JIT)](https://en.wikipedia.org/wiki/Just-in-time_compilation) option for dynamic purposes. Lets build an intuition around compilers.
 
 Often and in the case of our compiler the goal is to take input often in the form of a progam and lower it to a different 
 and hopefully well optimized representation that can be used in context, for general purpose programming languages this
