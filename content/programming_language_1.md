@@ -1,9 +1,7 @@
 +++
-title = "Building a programming language part 1: Hello World!"
+title = "Building a programming language Rust and MLIR part 1: pest the parser"
 date = 2023-07-17
 +++
-
-# Building a programming language with Rust and MLIR part 1: hello world
 
 Before diving in, I want to make it clear that I am not(yet) an expert in compiler and language development. I have a bit of experience
 from my bachelor project which invovled implementing a JIT compiler for a language developed by my university. This experience made me hungry
@@ -13,12 +11,12 @@ By documentating the process you can learn from my mistakes as well :)
 ## Overview
 
 This blog post is the first in (hopefully) a series on building and designing a programming language. For now the primary
-motivation is to satisfy an urge I have had for a while. To dig my teeth into language and compiler design/implementation.
-As well as try to solve issues I have seen in other programming languages and experiment with novel concepts
-within the space. I will make a separate post properly motivate the language I intend to build, for now lets focus on getting started.
+motivation is to satisfy an urge I have To dig my teeth into language + compiler design and implementation.
+I have some existing ideas for the language I plan to build, those will get a separate post. for I will focus on getting 
+the practical setup out of the way.
 
-The first couple of posts will serve as a sort of tutorial/introduction to the practical and theoretical aspects.
-Once the technical foundations have been set, I will start desigining and implementing more involved aspects. 
+The first couple of posts will serve as a sort of tutorial/introduction to the practical and theoretical aspects using the tools I have chosen (Rust, MLIR and pest).
+Once the foundations have been set, I will start desigining and implementing more involved aspects specific to the my language. I really need to find a name. 
 
 I hope you stay for the journey :)
 
@@ -31,29 +29,38 @@ println("Hello World!");
 
 and have "Hellp World!" output to standard out.
 
-This should be conceptually simple enough to wrap our heads around but invovled enough to kickstart the project and get the technical requirements inplace.
+This should be conceptually simple enough to wrap our heads around but invovled enough to kickstart the project and get our compiler stack setup.
 
-This first post will focus on the defining a grammar needed for this and generating a parser. We will also go over some general intution around compiler development.
+This first post will focus on the defining a grammar powerful enough for `prinln("Hello World!")` and generating a parser. A small introduction to compiler development
+will precede the parser development, to help provide general compiler intuition for the uninitiated.
 
 Lets go!
 
 ## An introduction to compiling programming languages
 
-Before we start it is important to have some intuition around the problem space. I assume that you have experience with using one. 
-If you do not then you have my respect for starting your journey with how to build a programming language.
+Before we start it is important to have some intuition around the problem space. I assume that you have experience with using a programming language. 
+If not then you have my respect for starting your journey with how to build a programming language!
 
-We will focus on compiling. I am confident that a [just in time(JIT)](https://en.wikipedia.org/wiki/Just-in-time_compilation) option will be sufficient to support dynamic/scripting purposes. 
-This will also force us to keep compile times low, win win.
-Lets build an intuition around compilers.
+Both compiled and interpreted languages are quite common today. For example Python is a popular interpreted language and Rust is a compiled language.
+We won't go deep into interpreted languages but the short version is, instead of preparing machine instructions a head of time, they are generated on
+the fly as new code is fed to the interpreter. A longer explanation is found [here](https://en.wikipedia.org/wiki/Interpreter_(computing). One advantage
+here is that code can be run immediately without the need to invoke a compiler. Two major disadvantages are poor performance and no compile time checks, for
+example like checking types. 
 
-Often and in the case of our compiler the goal is to take input often in the form of a progam and lower it to a different 
+We will be focusing on the design and implementation of a compiled language.
+I am confident that a [just in time(JIT)](https://en.wikipedia.org/wiki/Just-in-time_compilation) option will be 
+sufficient to support dynamic/scripting purposes. This will also force us to keep compile times low, win win.
+
+What is a compiler?
+
+The goal is to take input, often in the form of high level progam, think Rust, C, Java etc and lower it to a different 
 and hopefully well optimized representation that can be executed in some target environment. For general purpose programming languages this
- will often be some type of machine code that the target environment can execute like an X86 processor or virtual machine like the [JVM](TODO).  
+ will often be some type of machine code that the target environment can execute like an X86 processor or virtual machine like the [JVM](https://en.wikipedia.org/wiki/Java_virtual_machine).  
 
-This will usualy invovle parsing the input to build an abstract syntax tree (AST), lowering to some intermediate representation or multiple intermerdiate representations until we end up with a
-representation the target environment can execute. 
+This will usualy invovle parsing the input to build an abstract syntax tree (AST), lowering to some intermediate representation or multiple intermerdiate representations 
+until we end up with a representation the target environment can execute. 
 
-We will start with the beginning, parsing our input.
+We will start with at the beginning, parsing our input.
 
 ## The parser
 
@@ -86,19 +93,21 @@ string = { "\""	~ inner ~ "\"" }
 ```
 
 Pest has a rich syntax for specifing 
-the grammar but unless you are in the habit of writig grammars often you will want to check out the grammar chapter of the pest book 
-[here](https://pest.rs/book/grammars/grammars.html). 
+grammar. Unless you are in the habit of writig grammars often you will want to check out the the pest book 
+[here](https://pest.rs/book/grammars/grammars.html) to familiarize your self with the options. 
 
 We now have three rules, one for single characters `char`, one for the string contents `inner` and one for the whole string surrounded by double quotes `string`.
-We won't cover everything pest can do but breaking down the grammar for hopefully provides a good starting point. 
+We won't cover everything pest can do but breaking down our grammar hopefully provides a good starting point. 
 
-The `char` rule uses the [`any character but`](https://pest.rs/book/grammars/syntax.html#predicates) idiom. In our case this means if the following characters is not `"` or `\` consume one character.
+The `char` rule uses the [`any character but`](https://pest.rs/book/grammars/syntax.html#predicates) idiom. 
+In our case this means if the following characters is not `"` or `\` consume one character.
 Looking at the char rule from left to write the `!` acts as a negation, so `!( "\"" | "\\" )` says reject the patterns in the parenthses, where `|` is the 
 [choice operator](https://pest.rs/book/grammars/syntax.html?highlight=choice#ordered-choice). This operator will try to match on the provided options from left to right. Finally if the pattern is rejected 
 a single character is consumed using the builtin consumes one character denoted by the builtin [`ANY` rule](https://pest.rs/book/grammars/built-ins.html).
 
-If you are wondering why these characters are not allowed, `"` is used to define our strings and thus can not be included without being escaped and `\` will be used to escape characters.
-Escaping these characters is not strictly necessary just yet, but it sets the foundation nicely and allows us to try more of pest so why not. 
+If you are wondering why these characters are not allowed, `"` is used to define our strings and thus can not be included without being escaped 
+and `\` will be used to escape characters.
+Escaping these characters is not strictly necessary yet. However it does set a nice foundation and shows of more of pest. So why not? 
 
 A string contains an arbitrary number of characters, therefore the `inner` rule denotes exactly that with `char*`, where `*` indicates zero or more. The `@` marks this rule 
 as [atomic](https://pest.rs/book/grammars/syntax.html#atomic). Atomic rules have the following special properties:
@@ -107,7 +116,11 @@ as [atomic](https://pest.rs/book/grammars/syntax.html#atomic). Atomic rules have
 3. Rules inside an atomic rule are treated as atomic.
 
 This is practical for parsing strings as we do not want to produce a token for each individual character. This also removes the implicit
-allowing of whitespace that normal rules have with `~`. 
+allowance of whitespace that normal rules have with `~`. If you are wondering why have the `inner` rule at all and just put `char*` directly
+inside the string rule, that is a fair question. The `inner` rule contains the contents of a string without the surrounding`"`, if we removed it we would have to manually
+remove the surrounding quotes.
+
+TODO: shouldn't string be compound atomic?
 
 We now finally get to the `string` rule. A string is delimited by `"`, therefore our rule does exactly that 
 `string = { "\""	~ inner ~ "\"" }'.  We look for a pair of `"` with an `inner` between then.
@@ -122,7 +135,7 @@ cargo add pest pest_derive
 ```
 
 I believe that `cargo add` is a builtin option now but if you are on an older version of cargo it can be installed with [`cargo-edit`](https://github.com/killercup/cargo-edit). 
-Other wise just add the dependencies manually to `Cargo.toml` as shown below :)
+Otherwise just add the dependencies manually to `Cargo.toml` as shown below :)
 
 You `Cargo.toml` should look like this:
 ```toml
