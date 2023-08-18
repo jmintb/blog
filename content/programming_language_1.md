@@ -1,5 +1,5 @@
 +++
-title = "Building a programming language Rust and MLIR part 1: pest the parser"
+title = "Building a programming language with Rust and MLIR part 1: pest the parser"
 date = 2023-07-17
 +++
 
