@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title></title>
+    <link href="https://jmintb.github.io/blog/atom.xml" rel="self" type="application/atom+xml"/>
+    <link href="https://jmintb.github.io/blog/"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2023-07-17T00:00:00+00:00</updated>
+    <id>https://jmintb.github.io/blog/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Building a programming language with Rust and MLIR part 1: pest the parser</title>
+        <published>2023-07-17T00:00:00+00:00</published>
+        <updated>2023-07-17T00:00:00+00:00</updated>
+        <author>
+          <name>Unknown</name>
+        </author>
+        <link rel="alternate" href="https://jmintb.github.io/blog/programming-language-1/" type="text/html"/>
+        <id>https://jmintb.github.io/blog/programming-language-1/</id>
+        
+        <content type="html">&lt;p&gt;Before diving in, I want to make it clear that I am not(yet) an expert in compiler and language development. I have a bit of experience
+from my bachelor project which involved implementing a JIT compiler for a language developed by my university. This experience made me hungry
+for more and served as inspiration for all sorts of ideas I want to try out. I will make plenty of mistakes and have to learn along the way.
+By documentating the process you can learn from my mistakes as well :)&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;overview&quot;&gt;Overview&lt;&#x2F;h2&gt;
+&lt;p&gt;This blog post is the first in (hopefully) a series on building and designing a programming language. For now the primary
+motivation is to satisfy an urge I have To dig my teeth into language + compiler design and implementation.
+I have some existing ideas for the language I plan to build, those will get a separate post. for I will focus on getting 
+the practical setup out of the way.&lt;&#x2F;p&gt;
+&lt;p&gt;The first couple of posts will serve as a sort of tutorial&#x2F;introduction to the practical and theoretical aspects using the tools I have chosen (Rust, MLIR and pest).
+Once the foundations have been set, I will start designing and implementing more involved aspects specific to the my language. I really need to find a name. &lt;&#x2F;p&gt;
+&lt;p&gt;I hope you stay for the journey :)&lt;&#x2F;p&gt;
+&lt;p&gt;The first milestone is very simple and mostly serves as a way to get our project up and running. We will start by 
+building a minimal compiler that can compile: &lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;println&lt;&#x2F;span&gt;&lt;span&gt;(&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;Hello World!&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;);
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;and have &amp;quot;Hello World!&amp;quot; output to standard out.&lt;&#x2F;p&gt;
+&lt;p&gt;This should be conceptually simple enough to wrap our heads around but involved enough to kick start the project and get our compiler stack setup.&lt;&#x2F;p&gt;
+&lt;p&gt;This first post will focus on the defining a grammar powerful enough for &lt;code&gt;prinln(&amp;quot;Hello World!&amp;quot;)&lt;&#x2F;code&gt; and generating a parser. A small introduction to compiler development
+will precede the parser development, to help provide general compiler intuition for the uninitiated.&lt;&#x2F;p&gt;
+&lt;p&gt;Lets go!&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;an-introduction-to-compiling-programming-languages&quot;&gt;An introduction to compiling programming languages&lt;&#x2F;h2&gt;
+&lt;p&gt;Before we start it is important to have some intuition around the problem space. I assume that you have experience with using a programming language. 
+If not then you have my respect for starting your journey with how to build a programming language!&lt;&#x2F;p&gt;
+&lt;p&gt;Both compiled and interpreted languages are quite common today. For example Python is a popular interpreted language and Rust is a compiled language.
+We won&#x27;t go deep into interpreted languages but the short version is, instead of preparing machine instructions a head of time, they are generated on
+the fly as new code is fed to the interpreter. A longer explanation is found [here](https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Interpreter_(computing). One advantage
+here is that code can be run immediately without the need to invoke a compiler. Two major disadvantages are poor performance and no compile time checks, for
+example like checking types. &lt;&#x2F;p&gt;
+&lt;p&gt;We will be focusing on the design and implementation of a compiled language.
+I am confident that a &lt;a href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Just-in-time_compilation&quot;&gt;just in time(JIT)&lt;&#x2F;a&gt; option will be 
+sufficient to support dynamic&#x2F;scripting purposes. This will also force us to keep compile times low, win win.&lt;&#x2F;p&gt;
+&lt;p&gt;What is a compiler?&lt;&#x2F;p&gt;
+&lt;p&gt;The goal is to take input, often in the form of high level program, think Rust, C, Java etc and lower it to a different 
+and hopefully well optimized representation that can be executed in some target environment. For general purpose programming languages this
+will often be some type of machine code that the target environment can execute like an X86 processor or virtual machine like the &lt;a href=&quot;https:&#x2F;&#x2F;en.wikipedia.org&#x2F;wiki&#x2F;Java_virtual_machine&quot;&gt;JVM&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;This will usually involve parsing the input to build an abstract syntax tree (AST), lowering to some intermediate representation or multiple intermediate representations 
+until we end up with a representation the target environment can execute. &lt;&#x2F;p&gt;
+&lt;p&gt;We will start with at the beginning, parsing our input.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;the-parser&quot;&gt;The parser&lt;&#x2F;h2&gt;
+&lt;p&gt;The first step in our compiler pipeline is the parser. This step will build an AST and verify that the syntax is valid. 
+We could implement our own lexer, and for educational purposes I think that is a good exercise. However I will be using
+the PEG parsing crate &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;&quot;&gt;pest&lt;&#x2F;a&gt;, it is an incredible tool for generating a parser based on a PEG grammar in Rust.
+This also forces us to provide a specification for our language in the form of a grammar, win win. The grammar syntax
+can be a bit daunting at first. Lets develop at simple grammar that will be sufficient.&lt;&#x2F;p&gt;
+&lt;p&gt;To parse &lt;code&gt;println(&amp;quot;Hello World!&amp;quot;)&lt;&#x2F;code&gt; we need a few pieces of syntax in our grammar. Function calls, identifiers and values in the form of strings. 
+For now print will be a built in provided by the compiler, so we do not need syntax for declaring functions, only calling them.&lt;&#x2F;p&gt;
+&lt;p&gt;Pest provides helpful builtins for common string related cases.&lt;&#x2F;p&gt;
+&lt;p&gt;Lets define strings first, we will start with the string defined for pest&#x27;s JSON &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;examples&#x2F;json.html&quot;&gt;example&lt;&#x2F;a&gt; and strip it down a bit.&lt;&#x2F;p&gt;
+&lt;p&gt;Our grammar now looks like this, we will initialize a Rust project in a moment:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#2b303b;color:#c0c5ce;&quot;&gt;&lt;code&gt;&lt;span&gt;&#x2F;&#x2F; grammar.pest
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;char = {
+&lt;&#x2F;span&gt;&lt;span&gt;    !(&amp;quot;\&amp;quot;&amp;quot; | &amp;quot;\\&amp;quot;) ~ ANY
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;inner = @{ char* }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;string = ${ &amp;quot;\&amp;quot;&amp;quot;	~ inner ~ &amp;quot;\&amp;quot;&amp;quot; }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Pest has a rich syntax for specifying 
+grammar. Unless you are in the habit of writing grammars often you will want to check out the the pest book 
+&lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;grammars.html&quot;&gt;here&lt;&#x2F;a&gt; to familiarize your self with the options. &lt;&#x2F;p&gt;
+&lt;p&gt;We now have three rules, one for single characters &lt;code&gt;char&lt;&#x2F;code&gt;, one for the string contents &lt;code&gt;inner&lt;&#x2F;code&gt; and one for the whole string surrounded by double quotes &lt;code&gt;string&lt;&#x2F;code&gt;.
+We won&#x27;t cover everything pest can do but breaking down our grammar hopefully provides a good starting point. &lt;&#x2F;p&gt;
+&lt;p&gt;The &lt;code&gt;char&lt;&#x2F;code&gt; rule uses the &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;syntax.html#predicates&quot;&gt;&lt;code&gt;any character but&lt;&#x2F;code&gt;&lt;&#x2F;a&gt; idiom. 
+In our case this means if the following characters is not &lt;code&gt;&amp;quot;&lt;&#x2F;code&gt; or &lt;code&gt;\&lt;&#x2F;code&gt; consume one character.
+Looking at the char rule from left to write the &lt;code&gt;!&lt;&#x2F;code&gt; acts as a negation, so &lt;code&gt;!( &amp;quot;\&amp;quot;&amp;quot; | &amp;quot;\\&amp;quot; )&lt;&#x2F;code&gt; says reject the patterns in the parentheses, where &lt;code&gt;|&lt;&#x2F;code&gt; is the 
+&lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;syntax.html?highlight=choice#ordered-choice&quot;&gt;choice operator&lt;&#x2F;a&gt;. This operator will try to match on the provided options from left to right. Finally if the pattern is rejected 
+a single character is consumed using the builtin consumes one character denoted by the builtin &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;built-ins.html&quot;&gt;&lt;code&gt;ANY&lt;&#x2F;code&gt; rule&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;If you are wondering why these characters are not allowed, &lt;code&gt;&amp;quot;&lt;&#x2F;code&gt; is used to define our strings and thus can not be included without being escaped 
+and &lt;code&gt;\&lt;&#x2F;code&gt; will be used to escape characters.
+Escaping these characters is not strictly necessary yet. However it does set a nice foundation and shows of more of pest. So why not? &lt;&#x2F;p&gt;
+&lt;p&gt;A string contains an arbitrary number of characters, therefore the &lt;code&gt;inner&lt;&#x2F;code&gt; rule denotes exactly that with &lt;code&gt;char*&lt;&#x2F;code&gt;, where &lt;code&gt;*&lt;&#x2F;code&gt; indicates zero or more. The &lt;code&gt;@&lt;&#x2F;code&gt; marks this rule 
+as &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;syntax.html#atomic&quot;&gt;atomic&lt;&#x2F;a&gt;. Atomic rules have the following special properties:&lt;&#x2F;p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;~&lt;&#x2F;code&gt; means immediately follow by, so no white space. &lt;&#x2F;li&gt;
+&lt;li&gt;Repetition operators (* and +) have no implicit separation.&lt;&#x2F;li&gt;
+&lt;li&gt;Rules inside an atomic rule are treated as atomic.&lt;&#x2F;li&gt;
+&lt;&#x2F;ol&gt;
+&lt;p&gt;This is practical for parsing strings as we do not want to produce a token for each individual character. This also removes the implicit
+allowance of white space that normal rules have with &lt;code&gt;~&lt;&#x2F;code&gt;. If you are wondering why have the &lt;code&gt;inner&lt;&#x2F;code&gt; rule at all and just put &lt;code&gt;char*&lt;&#x2F;code&gt; directly
+inside the string rule, that is a fair question. The &lt;code&gt;inner&lt;&#x2F;code&gt; rule contains the contents of a string without the surrounding&lt;code&gt;&amp;quot;&lt;&#x2F;code&gt;, if we removed it we would have to manually
+remove the surrounding quotes.&lt;&#x2F;p&gt;
+&lt;p&gt;We now finally get to the &lt;code&gt;string&lt;&#x2F;code&gt; rule. A string is delimited by &lt;code&gt;&amp;quot;&lt;&#x2F;code&gt;, therefore our rule does exactly that 
+&lt;code&gt;string = ${ &amp;quot;\&amp;quot;&amp;quot;	~ inner ~ &amp;quot;\&amp;quot;&amp;quot; }&lt;&#x2F;code&gt;. We look for a pair of &lt;code&gt;&amp;quot;&lt;&#x2F;code&gt; with an &lt;code&gt;inner&lt;&#x2F;code&gt; between then. Note the &lt;code&gt;$&lt;&#x2F;code&gt;, it denotes &lt;code&gt;string&lt;&#x2F;code&gt; as
+a &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;syntax.html#atomic&quot;&gt;compound atomic&lt;&#x2F;a&gt;. This ensures that no implicit white space is permitted while
+still collecting the inner rules for parsing. The example below will show this in action :)&lt;&#x2F;p&gt;
+&lt;p&gt;Lets write some Rust and test our grammar.&lt;&#x2F;p&gt;
+&lt;p&gt;Init a cargo project, if you have not already and add the &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&quot;&gt;&lt;code&gt;pest&lt;&#x2F;code&gt;&lt;&#x2F;a&gt; dependencies:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;sh&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-sh &quot;&gt;&lt;code class=&quot;language-sh&quot; data-lang=&quot;sh&quot;&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span&gt; init&lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt; --bin&lt;&#x2F;span&gt;&lt;span&gt; somelang 
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;cargo&lt;&#x2F;span&gt;&lt;span&gt; add pest pest_derive 
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;I believe that &lt;code&gt;cargo add&lt;&#x2F;code&gt; is a builtin option these days. If you are on an older version of cargo it can be installed with &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;killercup&#x2F;cargo-edit&quot;&gt;&lt;code&gt;cargo-edit&lt;&#x2F;code&gt;&lt;&#x2F;a&gt;. &lt;&#x2F;p&gt;
+&lt;p&gt;Otherwise just add the dependencies manually to &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt; as shown below :)&lt;&#x2F;p&gt;
+&lt;p&gt;Your &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt; should look like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span&gt;[dependencies]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;pest &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;2.6&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;pest_derive &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;2.6&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;We can now jump into &lt;code&gt;src&#x2F;main.rs&lt;&#x2F;code&gt; and use our parser. Lets start by printing what a parsed string looks like.&lt;&#x2F;p&gt;
+&lt;p&gt;Remember to put the grammar defined earlier into &lt;code&gt;grammar.pest&lt;&#x2F;code&gt; in the same directory as &lt;code&gt;Cargo.toml&lt;&#x2F;code&gt;. Your directory should have the following structure:&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#2b303b;color:#c0c5ce;&quot;&gt;&lt;code&gt;&lt;span&gt;Cargo.toml
+&lt;&#x2F;span&gt;&lt;span&gt;Cargo.lock
+&lt;&#x2F;span&gt;&lt;span&gt;grammar.pest
+&lt;&#x2F;span&gt;&lt;span&gt;src&#x2F;main.rs
+&lt;&#x2F;span&gt;&lt;span&gt;...
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;In &lt;code&gt;main.rs&lt;&#x2F;code&gt; we:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; Add the pest depdendencies
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;use &lt;&#x2F;span&gt;&lt;span&gt;pest::Parser;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;use &lt;&#x2F;span&gt;&lt;span&gt;pest_derive::Parser;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; Declare our Parser struct and derive the pest Parser trait.
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; As well as reference the file containing our grammar.
+&lt;&#x2F;span&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;derive&lt;&#x2F;span&gt;&lt;span&gt;(Parser)]
+&lt;&#x2F;span&gt;&lt;span&gt;#[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;grammar &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;grammar.pest&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;pub struct &lt;&#x2F;span&gt;&lt;span&gt;LangParser;
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;fn &lt;&#x2F;span&gt;&lt;span style=&quot;color:#8fa1b3;&quot;&gt;main&lt;&#x2F;span&gt;&lt;span&gt;() {
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; input = &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;\&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;hello world&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;\&amp;quot;&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;to_string&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; This parses the &amp;quot;hello world&amp;quot; string using the string rule.
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; parsed_input = LangParser::parse(Rule::string, &amp;amp;input).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; We use #? to pretty the output for easy reading.
+&lt;&#x2F;span&gt;&lt;span&gt;    println!(&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#d08770;&quot;&gt;{parsed_input:#?}&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;);
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Running &lt;code&gt;cargo run&lt;&#x2F;code&gt; should produce the following output.&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#2b303b;color:#c0c5ce;&quot;&gt;&lt;code&gt;&lt;span&gt;[
+&lt;&#x2F;span&gt;&lt;span&gt;    Pair {
+&lt;&#x2F;span&gt;&lt;span&gt;        rule: string,
+&lt;&#x2F;span&gt;&lt;span&gt;        span: Span {
+&lt;&#x2F;span&gt;&lt;span&gt;            str: &amp;quot;\&amp;quot;hello world\&amp;quot;&amp;quot;,
+&lt;&#x2F;span&gt;&lt;span&gt;            start: 0,
+&lt;&#x2F;span&gt;&lt;span&gt;            end: 13,
+&lt;&#x2F;span&gt;&lt;span&gt;        },
+&lt;&#x2F;span&gt;&lt;span&gt;        inner: [
+&lt;&#x2F;span&gt;&lt;span&gt;            Pair {
+&lt;&#x2F;span&gt;&lt;span&gt;                rule: inner,
+&lt;&#x2F;span&gt;&lt;span&gt;                span: Span {
+&lt;&#x2F;span&gt;&lt;span&gt;                    str: &amp;quot;hello world&amp;quot;,
+&lt;&#x2F;span&gt;&lt;span&gt;                    start: 1,
+&lt;&#x2F;span&gt;&lt;span&gt;                    end: 12,
+&lt;&#x2F;span&gt;&lt;span&gt;                },
+&lt;&#x2F;span&gt;&lt;span&gt;                inner: [],
+&lt;&#x2F;span&gt;&lt;span&gt;            },
+&lt;&#x2F;span&gt;&lt;span&gt;        ],
+&lt;&#x2F;span&gt;&lt;span&gt;    },
+&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Here we can see the &lt;a href=&quot;https:&#x2F;&#x2F;docs.rs&#x2F;pest&#x2F;latest&#x2F;pest&#x2F;iterators&#x2F;struct.Pair.html&quot;&gt;Pair&lt;&#x2F;a&gt; which 
+represents a matching pair of tokens and everything in between. In our case &lt;code&gt;&amp;quot;&lt;&#x2F;code&gt; is the token
+matched by the first Pair: &lt;code&gt;span: Span { str: &amp;quot;\&amp;quot;hello world\&amp;quot;&amp;quot;, start: 0, end: 13 }&lt;&#x2F;code&gt;. 
+The inner field contains what ever the tokens spanned. In this case another &lt;code&gt;Pair&lt;&#x2F;code&gt; spanning the actual 
+string contents. The matching token pair is &lt;code&gt;h&lt;&#x2F;code&gt; and &lt;code&gt;d&lt;&#x2F;code&gt;. This might seem a bit counter intuitive
+but our string contains any number of &lt;code&gt;CHAR&lt;&#x2F;code&gt; due to &lt;code&gt;inner = { CHAR* }&lt;&#x2F;code&gt; and char matches
+on almost any character. An important observation here is that matching tokens for a &lt;code&gt;Pair&lt;&#x2F;code&gt; do not need to be the same, 
+only match the same rule. &lt;&#x2F;p&gt;
+&lt;p&gt;Note how the &lt;code&gt;inner&lt;&#x2F;code&gt; does not contain any &lt;code&gt;CHAR&lt;&#x2F;code&gt; rules but just the characters it spans. 
+This is due the fact that &lt;code&gt;inner&lt;&#x2F;code&gt; is &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;syntax.html#atomic&quot;&gt;atomic&lt;&#x2F;a&gt; and does not permit 
+white space between rules. &lt;code&gt;string&lt;&#x2F;code&gt; on the other hand is a &lt;a href=&quot;https:&#x2F;&#x2F;pest.rs&#x2F;book&#x2F;grammars&#x2F;syntax.html#atomic&quot;&gt;compound atomic&lt;&#x2F;a&gt; rule. 
+It will therefore have inner rules but still does not permit any white space between matches.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;function-calls&quot;&gt;Function calls&lt;&#x2F;h3&gt;
+&lt;p&gt;Next up let us expand our grammar to support function calls with a single input value. This will be the last addition required to print &lt;code&gt;Hello World!&lt;&#x2F;code&gt;.
+We will start by extending our input in &lt;code&gt;src&#x2F;main.rs&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;    ...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; input = &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;print(&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;\&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;hello world&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;\&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;)&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;to_string&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    ...
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now if we run &lt;code&gt;cargo run&lt;&#x2F;code&gt; we will get an error as our grammar does not support function calls yet. Lets fix that!&lt;&#x2F;p&gt;
+&lt;p&gt;We will add 3 new rules, first  &lt;code&gt;val = _{ string }&lt;&#x2F;code&gt;. &lt;code&gt;val&lt;&#x2F;code&gt; represents a value. Right now we only support string values
+so &lt;code&gt;val&lt;&#x2F;code&gt; only contains the &lt;code&gt;string&lt;&#x2F;code&gt; rule. &lt;code&gt;val&lt;&#x2F;code&gt; is silent denoted by &lt;code&gt;_&lt;&#x2F;code&gt;. This means that it will note be visible in our
+parser. Instead we will see instances it&#x27;s inner rules. This is nice as it saves us having to &amp;quot;unwrap&amp;quot; val instances, since we
+are always interested in it&#x27;s contents.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;code&gt;id = { ASCII_ALPHA+  }&lt;&#x2F;code&gt; will represent an identifier of variables, functions, modules etc. For example &lt;code&gt;println&lt;&#x2F;code&gt; is an identifier. 
+&lt;code&gt;ASCII_ALPHA+&lt;&#x2F;code&gt; indicates matches on one or more
+letters from a-z and A-Z. In future iterations we want to be support more characters but this will do for now. &lt;&#x2F;p&gt;
+&lt;p&gt;Finally &lt;code&gt;call = ${ id ~  &amp;quot;(&amp;quot; ~ val  ~ &amp;quot;)&amp;quot; }&lt;&#x2F;code&gt;, which matches on a function call containing a single argument. 
+&lt;code&gt;call&lt;&#x2F;code&gt; consists of an identifier followed by a single argument surrounded by parentheses. 
+Exactly what we need! We make this rule compound atomic as we do not want white space between the 
+identifier and parentheses.&lt;&#x2F;p&gt;
+&lt;p&gt;&lt;code&gt;grammar.pest&lt;&#x2F;code&gt; should now look like this.&lt;&#x2F;p&gt;
+&lt;pre style=&quot;background-color:#2b303b;color:#c0c5ce;&quot;&gt;&lt;code&gt;&lt;span&gt;&#x2F;&#x2F; grammar.pest
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;char = {
+&lt;&#x2F;span&gt;&lt;span&gt;    !(&amp;quot;\&amp;quot;&amp;quot; | &amp;quot;\\&amp;quot; ) ~ ANY
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;inner = @{ char* }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;string = ${ &amp;quot;\&amp;quot;&amp;quot;	~ inner ~ &amp;quot;\&amp;quot;&amp;quot; }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;val = _{ string }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;id = { ASCII_ALPHA*  }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;call = ${ id ~  &amp;quot;(&amp;quot; ~ val  ~ &amp;quot;)&amp;quot; }
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Lets take it for a spin!. Running &lt;code&gt;cargo run&lt;&#x2F;code&gt; should still produce an error, as we have not updated which rule we use to parse this.
+In &lt;code&gt;src&#x2F;main.rs&lt;&#x2F;code&gt; update the parsing line to use &lt;code&gt;Rule::call&lt;&#x2F;code&gt;. &lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; src&#x2F;main.rs
+&lt;&#x2F;span&gt;&lt;span&gt;    ...
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; parsed_input = LangParser::parse(Rule::call, &amp;amp;input).&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;    ...
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Now you should be able to run &lt;code&gt;cargo run&lt;&#x2F;code&gt; and get the parsed function call like this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;shell&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-shell &quot;&gt;&lt;code class=&quot;language-shell&quot; data-lang=&quot;shell&quot;&gt;&lt;span&gt;[
+&lt;&#x2F;span&gt;&lt;span&gt;    Pair {
+&lt;&#x2F;span&gt;&lt;span&gt;        rule: call,
+&lt;&#x2F;span&gt;&lt;span&gt;        span: Span {
+&lt;&#x2F;span&gt;&lt;span&gt;            str: &amp;quot;print(\&amp;quot;hello world\&amp;quot;)&amp;quot;,
+&lt;&#x2F;span&gt;&lt;span&gt;            start: 0,
+&lt;&#x2F;span&gt;&lt;span&gt;            end: 20,
+&lt;&#x2F;span&gt;&lt;span&gt;        },
+&lt;&#x2F;span&gt;&lt;span&gt;        inner: [
+&lt;&#x2F;span&gt;&lt;span&gt;            Pair {
+&lt;&#x2F;span&gt;&lt;span&gt;                rule: id,
+&lt;&#x2F;span&gt;&lt;span&gt;                span: Span {
+&lt;&#x2F;span&gt;&lt;span&gt;                    str: &amp;quot;print&amp;quot;,
+&lt;&#x2F;span&gt;&lt;span&gt;                    start: 0,
+&lt;&#x2F;span&gt;&lt;span&gt;                    end: 5,
+&lt;&#x2F;span&gt;&lt;span&gt;                },
+&lt;&#x2F;span&gt;&lt;span&gt;                inner: [],
+&lt;&#x2F;span&gt;&lt;span&gt;            },
+&lt;&#x2F;span&gt;&lt;span&gt;            Pair {
+&lt;&#x2F;span&gt;&lt;span&gt;                rule: string,
+&lt;&#x2F;span&gt;&lt;span&gt;                span: Span {
+&lt;&#x2F;span&gt;&lt;span&gt;                    str: &amp;quot;\&amp;quot;hello world\&amp;quot;&amp;quot;,
+&lt;&#x2F;span&gt;&lt;span&gt;                    start: 6,
+&lt;&#x2F;span&gt;&lt;span&gt;                    end: 19,
+&lt;&#x2F;span&gt;&lt;span&gt;                },
+&lt;&#x2F;span&gt;&lt;span&gt;                inner: [
+&lt;&#x2F;span&gt;&lt;span&gt;                    Pair {
+&lt;&#x2F;span&gt;&lt;span&gt;                        rule: inner,
+&lt;&#x2F;span&gt;&lt;span&gt;                        span: Span {
+&lt;&#x2F;span&gt;&lt;span&gt;                            str: &amp;quot;hello world&amp;quot;,
+&lt;&#x2F;span&gt;&lt;span&gt;                            start: 7,
+&lt;&#x2F;span&gt;&lt;span&gt;                            end: 18,
+&lt;&#x2F;span&gt;&lt;span&gt;                        },
+&lt;&#x2F;span&gt;&lt;span&gt;                        inner: [],
+&lt;&#x2F;span&gt;&lt;span&gt;                    },
+&lt;&#x2F;span&gt;&lt;span&gt;                ],
+&lt;&#x2F;span&gt;&lt;span&gt;            },
+&lt;&#x2F;span&gt;&lt;span&gt;        ],
+&lt;&#x2F;span&gt;&lt;span&gt;    },
+&lt;&#x2F;span&gt;&lt;span&gt;]
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;And with that we are finished with the grammar, for now ;)&lt;&#x2F;p&gt;
+&lt;p&gt;This post has grown quite long so we will continue in the next one. 
+Where we will actually use our parser and hopefully finish &lt;code&gt;prinln(&amp;quot;Hello World!&amp;quot;)&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;As a final step we will extract the identifier and argument, by traversing the parsed input as nested iterators.
+This will help show how to work with pest.&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;rust&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-rust &quot;&gt;&lt;code class=&quot;language-rust&quot; data-lang=&quot;rust&quot;&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; src&#x2F;main.rs
+&lt;&#x2F;span&gt;&lt;span&gt;...
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; Get an iterator over the pairs matched by Rule::call
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; call_pairs = parsed_input.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;into_iter&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;next&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;into_inner&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; We know the id comes first.
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; id = call_pairs.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;next&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; And the function argument second.
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#65737e;&quot;&gt;&#x2F;&#x2F; We extract the `inner` rule inside the matched `string`.
+&lt;&#x2F;span&gt;&lt;span&gt;    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let&lt;&#x2F;span&gt;&lt;span&gt; argument = call_pairs.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;next&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;unwrap&lt;&#x2F;span&gt;&lt;span&gt;().&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;into_inner&lt;&#x2F;span&gt;&lt;span&gt;();
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;    println!(&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;id: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#d08770;&quot;&gt;{}&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;, argument: &lt;&#x2F;span&gt;&lt;span style=&quot;color:#d08770;&quot;&gt;{}&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;, id.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;as_str&lt;&#x2F;span&gt;&lt;span&gt;(), argument.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;as_str&lt;&#x2F;span&gt;&lt;span&gt;());
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span&gt;}
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;&lt;code&gt;cargo run&lt;&#x2F;code&gt; should now produce:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;sh&quot; style=&quot;background-color:#2b303b;color:#c0c5ce;&quot; class=&quot;language-sh &quot;&gt;&lt;code class=&quot;language-sh&quot; data-lang=&quot;sh&quot;&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;id:&lt;&#x2F;span&gt;&lt;span&gt; print, argument: hello world
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Note how &lt;code&gt;hello world&lt;&#x2F;code&gt; does not have surrounding quotes. This is because we went one level deeper. If we stopped at  &lt;code&gt;argument =  call_pairs.next().unwrap&lt;&#x2F;code&gt; we would have the &lt;code&gt;string&lt;&#x2F;code&gt; rule which
+contains &lt;code&gt;&amp;quot;&lt;&#x2F;code&gt;. By calling &lt;code&gt;into_inner&lt;&#x2F;code&gt; we go one rule deeper and extract the matched &lt;code&gt;inner&lt;&#x2F;code&gt; which only holds the contents of a 
+string. &lt;&#x2F;p&gt;
+&lt;p&gt;Traversing our parsed input in this manner will allow us to build a proper AST one we are ready. I hope this example showed how 
+powerful and simple &lt;a href=&quot;https:&#x2F;&#x2F;jmintb.github.io&#x2F;blog&#x2F;programming-language-1&#x2F;todo&quot;&gt;pest&lt;&#x2F;a&gt; allows us to get started parsing.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;closing-notes&quot;&gt;Closing notes&lt;&#x2F;h3&gt;
+&lt;p&gt;Thanks for reading! I hope this post was informative and fun. The code for this post is available &lt;a href=&quot;https:&#x2F;&#x2F;jmintb.github.io&#x2F;blog&#x2F;programming-language-1&#x2F;TODO&quot;&gt;here&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;If you are interested in this sort of thing subscribe to the &lt;a href=&quot;https:&#x2F;&#x2F;jmintb.github.io&#x2F;blog&#x2F;programming-language-1&#x2F;TODO&quot;&gt;rss&lt;&#x2F;a&gt;. I do not have a proper about section
+yet, so I will put my socials here:&lt;&#x2F;p&gt;
+&lt;p&gt;mastodon: https:&#x2F;&#x2F;hachyderm.io&#x2F;@jmintb&lt;&#x2F;p&gt;
+&lt;p&gt;github: https:&#x2F;&#x2F;github.com&#x2F;jmintb&lt;&#x2F;p&gt;
+&lt;p&gt;youtube: https:&#x2F;&#x2F;www.youtube.com&#x2F;channel&#x2F;UCiktIroKtzNNLqyRgPxvnfQ&lt;&#x2F;p&gt;
+&lt;p&gt;twitch: https:&#x2F;&#x2F;www.twitch.tv&#x2F;teainspace&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>
