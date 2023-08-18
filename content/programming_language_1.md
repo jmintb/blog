@@ -88,7 +88,7 @@ char = {
 
 inner = @{ char* }
 
-string = { "\""	~ inner ~ "\"" }
+string = ${ "\""	~ inner ~ "\"" }
 
 ```
 
@@ -120,10 +120,10 @@ allowance of whitespace that normal rules have with `~`. If you are wondering wh
 inside the string rule, that is a fair question. The `inner` rule contains the contents of a string without the surrounding`"`, if we removed it we would have to manually
 remove the surrounding quotes.
 
-TODO: shouldn't string be compound atomic?
-
 We now finally get to the `string` rule. A string is delimited by `"`, therefore our rule does exactly that 
-`string = { "\""	~ inner ~ "\"" }'.  We look for a pair of `"` with an `inner` between then.
+`string = ${ "\""	~ inner ~ "\"" }`. We look for a pair of `"` with an `inner` between then. Note the `$`, it denotes `string` as
+a [compound atomic](https://pest.rs/book/grammars/syntax.html#atomic). This ensures that no implicit whitespace is permitted while
+still collecting the inner rules for parsing. The example below will show this in action :)
 
 Lets write some Rust and test our grammar.
 
@@ -134,25 +134,27 @@ cargo init --bin somelang
 cargo add pest pest_derive 
 ```
 
-I believe that `cargo add` is a builtin option now but if you are on an older version of cargo it can be installed with [`cargo-edit`](https://github.com/killercup/cargo-edit). 
+I believe that `cargo add` is a builtin option these days. If you are on an older version of cargo it can be installed with [`cargo-edit`](https://github.com/killercup/cargo-edit). 
+
 Otherwise just add the dependencies manually to `Cargo.toml` as shown below :)
 
-You `Cargo.toml` should look like this:
+Your `Cargo.toml` should look like this:
 ```toml
 [dependencies]
 pest = "2.6"
 pest_derive = "2.6"
 ```
 
-We can now jump into `src/main.rs` and use our parser. To get an intuition of what is happening, lets start by printing what a parsed string looks like.
+We can now jump into `src/main.rs` and use our parser. Lets start by printing what a parsed string looks like.
 
-Remember to put the grammar defined earlier into `grammar.pest` in the same directory as `Cargo.toml`. You directory should have the following structure:
+Remember to put the grammar defined earlier into `grammar.pest` in the same directory as `Cargo.toml`. Your directory should have the following structure:
 
 ```
 Cargo.toml
 Cargo.lock
 grammar.pest
 src/main.rs
+...
 ```
 
 In `main.rs` we:  
@@ -208,15 +210,19 @@ Running `cargo run` should produce the following output.
 ]
 ```
 
-Here we can see the [Pair](https://docs.rs/pest/latest/pest/iterators/struct.Pair.html) which represents a matching pair of tokens and everything in between. In our case `"` is the token
-matched by the first Pair, see `span: Span { str: "\"hello world\"", start: 0, end: 13 }`. The inner field contains what ever the tokens spanned. In this case another `Pair`, spanning the actual 
- string contents. In this case the matching token pair is `h` and `d`. This might seem a bit counter intutive but our string contains any number of `CHAR` due to `inner = { CHAR* }` and char matches
- on almost any character. An important objservation here is that matching tokens for a `Pair` do not need to be the same, only match the same rule. 
+Here we can see the [Pair](https://docs.rs/pest/latest/pest/iterators/struct.Pair.html) which 
+represents a matching pair of tokens and everything in between. In our case `"` is the token
+matched by the first Pair: `span: Span { str: "\"hello world\"", start: 0, end: 13 }`. 
+The inner field contains what ever the tokens spanned. In this case another `Pair` spanning the actual 
+ string contents. The matching token pair is `h` and `d`. This might seem a bit counter intuitve
+but our string contains any number of `CHAR` due to `inner = { CHAR* }` and char matches
+ on almost any character. An important observation here is that matching tokens for a `Pair` do not need to be the same, 
+only match the same rule. 
 
-Note how the `inner` does not contain any `CHAR` rules but just the characters it spans. This is due the fact that `inner` is [atomic](https://pest.rs/book/grammars/syntax.html#atomic) and does not permit 
-whitespace between. `string` on the other hand is a [compound atomic](https://pest.rs/book/grammars/syntax.html#atomic) rule. 
-It therefore will have inner rules but still does not permit any whitespace between matches.  
-
+Note how the `inner` does not contain any `CHAR` rules but just the characters it spans. 
+This is due the fact that `inner` is [atomic](https://pest.rs/book/grammars/syntax.html#atomic) and does not permit 
+whitespace between rules. `string` on the other hand is a [compound atomic](https://pest.rs/book/grammars/syntax.html#atomic) rule. 
+It will therefore have inner rules but still does not permit any whitespace between matches.
 
 ### Function calls
 
@@ -232,16 +238,19 @@ We will start by extending our input in `src/main.rs`.
 Now if we run `cargo run` we will get an error as our grammar does not support function calls yet. Lets fix that!
 
 We will add 3 new rules, first  `val = _{ string }`. `val` represents a value. Right now we only support string values
-so `val` only contains the `string` rule. `val` is also silent using denoted by u `_`, as it is just a way of representing values in our grammar, we only want to parse it's contents. 
-In our sample input `"Hello World!" is a value.
+so `val` only contains the `string` rule. `val` is silent denoted by `_`. This means that it will note be visible in our
+parser. Instead we will see instances it's inner rules. This is nice as it saves us having to "unwrap" val instances, since we
+are always interested in it's contents.
 
-`id = { ASCII_ALPHA+  }` will represent an identifier of variables, functions, modules etc. `print` is identifer. `ASCII_ALPHA+` indicates matches on one or more
-letters from a-z and A-Z. In future iterations we want to be support more characters but this will do for today. 
+`id = { ASCII_ALPHA+  }` will represent an identifier of variables, functions, modules etc. For example `println` is an identifer. 
+`ASCII_ALPHA+` indicates matches on one or more
+letters from a-z and A-Z. In future iterations we want to be support more characters but this will do for now. 
 
-Finally `call = { id ~  "(" ~ val  ~ ")" }`, which matches on a function call containing a single argument. `call` concists of an identifer followed by a single argument surrouned by parantethes. 
-Exactly what we need :fireworks:. We also need to make this rule compound atomic as we do not want whitespace between the identifer and parantethese by we do want to parse the inner rules.
+Finally `call = ${ id ~  "(" ~ val  ~ ")" }`, which matches on a function call containing a single argument. 
+`call` concists of an identifer followed by a single argument surrounded by parentheses. 
+Exactly what we need! We make this rule compound atomic as we do not want whitespace between the 
+identifer and parentheses.
 
-`call = ${ id ~ "(" ~ val ~ ")" }`, there we go.
 
 `grammar.pest` should now look like this.
 
@@ -254,7 +263,7 @@ char = {
 
 inner = @{ char* }
 
-string = { "\""	~ inner ~ "\"" }
+string = ${ "\""	~ inner ~ "\"" }
 
 val = _{ string }
 
@@ -264,7 +273,7 @@ call = ${ id ~  "(" ~ val  ~ ")" }
 
 ```
 
-Lets take it for a spin!. If you run `cargo run` now you should still get an error, as we have not updated which rule we use to parse this.
+Lets take it for a spin!. Running `cargo run` should still produce an error, as we have not updated which rule we use to parse this.
 In `src/main.rs` update the parsing line to use `Rule::call`. 
 
 ```rust
@@ -319,10 +328,13 @@ Now you should be able to run `cargo run` and get the parsed function call like 
 ]
 ```
 
-And with that we are finished with the grammar(for now :) ) and can move to implementing support for this in our compiler.
+And with that we are finished with the gramma, for now ;)
 
-As the final step we will extract the identifier and argument. We can traverse the parsed input as nested iterators.
+This post has grown quite long so we will continue in the next one. 
+Where we will actually use our parser and hopefully finish `prinln("Hello World!")`.
 
+As a final step we will extract the identifier and argument, by traversing the parsed input as nested iterators.
+This will help show how to work with pest.
 
 ```rust
 // src/main.rs
@@ -331,7 +343,7 @@ As the final step we will extract the identifier and argument. We can traverse t
     // Get an iterator over the pairs matched by Rule::call
     let mut call_pairs = parsed_input.into_iter().next().unwrap().into_inner();
 
-    // We know the id is comes first.
+    // We know the id comes first.
     let id = call_pairs.next().unwrap();
 
     // And the function argument second.
@@ -350,8 +362,25 @@ As the final step we will extract the identifier and argument. We can traverse t
 id: print, argument: hello world
 ```
 
-Note how `hello world` does not have surrounding quotes. This is because we went one level deeper. If we stoppe at  `argument = call_pairs.next().unwrap` we woud have the `string` rule which
-contains `"`. By callingo `into_inner` we go one rule deeper and extract the matched `inner` which only holds the contents of a string. 
+Note how `hello world` does not have surrounding quotes. This is because we went one level deeper. If we stoppe at  `argument = 
+call_pairs.next().unwrap` we woud have the `string` rule which
+contains `"`. By callingo `into_inner` we go one rule deeper and extract the matched `inner` which only holds the contents of a 
+string. 
 
-Traversing our parsed input in this manner will allow us to build a propper AST one we are ready. I hope this example showed how powerful and simple [pest](todo) allows us to get started parsing.
+Traversing our parsed input in this manner will allow us to build a propper AST one we are ready. I hope this example showed how 
+powerful and simple [pest](todo) allows us to get started parsing.
 
+### Closing notes
+
+Thanks for reading! I hope this post was informative and fun. The code for this post is available [here](TODO).
+
+If you are interested in this sort of thing subscribe to the [rss](TODO). I do not have a propper about section
+yet, so I will put my socials here:
+
+mastodon: https://hachyderm.io/@jmintb
+
+github: https://github.com/jmintb
+
+youtube: https://www.youtube.com/channel/UCiktIroKtzNNLqyRgPxvnfQ
+
+twitch: https://www.twitch.tv/teainspace
