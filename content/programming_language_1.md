@@ -6,7 +6,7 @@ date = 2023-07-17
 Before diving in, I want to make it clear that I am not(yet) an expert in compiler and language development. I have a bit of experience
 from my bachelor project which involved implementing a JIT compiler for a language developed by my university. This experience made me hungry
 for more and served as inspiration for all sorts of ideas I want to try out. I will make plenty of mistakes and have to learn along the way.
-By documentation the process you can learn from my mistakes as well :)
+By documentating the process you can learn from my mistakes as well :)
 
 ## Overview
 
