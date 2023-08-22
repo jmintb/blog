@@ -374,7 +374,7 @@ powerful and simple [pest](todo) allows us to get started parsing.
 
 Thanks for reading! I hope this post was informative and fun. The code for this post is available [here](TODO).
 
-If you are interested in this sort of thing subscribe to the [rss](TODO). I do not have a proper about section
+If you are interested in this sort of thing subscribe to the [rss](https://raw.githubusercontent.com/jmintb/blog/main/atom.xml). I do not have a proper about section
 yet, so I will put my socials here:
 
 mastodon: https://hachyderm.io/@jmintb
