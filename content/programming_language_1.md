@@ -372,15 +372,12 @@ powerful and simple [pest](todo) allows us to get started parsing.
 
 ### Closing notes
 
-Thanks for reading! I hope this post was informative and fun. The code for this post is available [here](TODO).
+Thanks for reading! I hope this post was informative and fun. The code for this post is available [here](https://github.com/jmintb/programming_language_one).
 
-If you are interested in this sort of thing subscribe to the [rss](https://raw.githubusercontent.com/jmintb/blog/main/atom.xml). I do not have a proper about section
-yet, so I will put my socials here:
 
-mastodon: https://hachyderm.io/@jmintb
-
-github: https://github.com/jmintb
-
-youtube: https://www.youtube.com/channel/UCiktIroKtzNNLqyRgPxvnfQ
-
-twitch: https://www.twitch.tv/teainspace
+[rss](https://raw.githubusercontent.com/jmintb/blog/main/atom.xml)
+[mastodon](https://hachyderm.io/@jmintb)
+[github](https://github.com/jmintb)
+[youtube](https://www.youtube.com/channel/UCiktIroKtzNNLqyRgPxvnfQ)
+[twitch](https://www.twitch.tv/teainspace)
+[email](mailto:jessie@teainspace.com)
