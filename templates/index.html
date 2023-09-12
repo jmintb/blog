@@ -1,0 +1,64 @@
+<html lang="{{ lang }}">
+<head>
+<meta 
+  name    = "color-scheme" 
+  content = "light dark"
+/>
+<link rel="stylesheet" href="{{ get_url(path="main.css", trailing_slash=false) }}">
+</head>
+<main class="index">
+  <section>
+  <header class="head">
+  <img
+      src={{ get_url(path="teacup.png") }}
+      alt="Hand drawn cup of tea"
+   style="width: 60px; height: 50px; object-fit: cover; object-position: 0 -10%;"      
+       /><h1>  Jessie's Blog  </h1>
+      </header>
+        </p>
+   Hello! this is my mostly technical blog. For now I am focused on writing about programming languages.
+  <p>
+
+      <a class="rss" href="/blog/index.xml">rss</a>
+
+   <section>
+  <section class="article-list">
+    <h1> Posts </h1>
+
+       {% block content %}
+      {% set section = get_section(path="blog/_index.md") %}
+                <div class="article">
+                    {% for page in section.pages | reverse %}
+                      <div class="article">
+                          <a href="{{ page.permalink }}">
+                            {{ page.title | safe }}
+                          </a>
+
+                      </div>
+                    {% endfor %}
+                </div>
+            {% endblock content %}
+  </section>
+
+  <aside>
+
+  <h3> Where to find me </h3>
+
+
+    <dl class="external-links">
+      <dt>Mastodon</dt>
+      <dd><a href="https://www.hachyderm.io/@jmintb">jmintb@hachyderm.io</a></dd>
+      <dt>email</dt>
+      <dd><a href="jessie@jessiecspencer.com">jessie@jessiecspencer.com</a></dd>
+      <dt>Github</dt>
+      <dd><a href="https://github.com/jmintb">jmintb</a></dd>
+      <dt>Youtube</dt>
+      <dd><a href="https://www.youtube.com/@teainspace1203">TeaInSpace</a></dd>
+      <dt>Twitch</dt>
+      <dd><a href="https://www.twitch.tv/teainspace">TeaInSpace</a></dd>
+    </dl>
+
+  </aside>
+</main>
+
+</html>

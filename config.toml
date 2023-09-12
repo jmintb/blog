@@ -1,21 +1,11 @@
 # The URL the site will be built for
-base_url = "https://jmintb.github.io/blog/"
+base_url = "https://www.jessiecspencer.com"
 
 # Whether to automatically compile all Sass files in the sass directory
 compile_sass = true
 
 # Whether to build a search index to be used later on by a JavaScript library
 build_search_index = true
-
-theme = "after-dark"
-
-generate_feed = true
-
-taxonomies = [
-    # You can enable/disable RSS
-    {name = "categories", feed = true},
-    {name = "tags", feed = true},
-]
 
 [markdown]
 # Whether to do syntax highlighting
