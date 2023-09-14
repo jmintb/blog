@@ -5,15 +5,16 @@
   name    = "color-scheme" 
   content = "light dark"
 />
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="{{ get_url(path="main.css", trailing_slash=false) }}">
 </head>
-<main class="index">
-{% block content %}
-<div class="post">
   <h1 class="post-title">{{ page.title }}</h1>
+<main >
+{% block content %}
+<article>
   <span class="post-date">{{ page.date | date(format="%Y-%m-%d") }}</span>
   {{ page.content | safe }}
-</div>
+</article>
 {% endblock content %}
 </main>
 </html>
