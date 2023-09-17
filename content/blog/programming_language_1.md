@@ -373,6 +373,7 @@ powerful and simple [pest](todo) allows us to get started parsing.
 ### Closing notes
 
 Thanks for reading! I hope this post was informative and fun. The code for this post is available [here](https://github.com/jmintb/programming_language_one).
+If you have questions or comments checkout [this](https://github.com/jmintb/blog/discussions/1) dicussion thread.
 
 
 [rss](https://raw.githubusercontent.com/jmintb/blog/main/atom.xml)
