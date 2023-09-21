@@ -376,7 +376,7 @@ Thanks for reading! I hope this post was informative and fun. The code for this 
 If you have questions or comments checkout [this](https://github.com/jmintb/blog/discussions/1) dicussion thread.
 
 
-[rss](https://raw.githubusercontent.com/jmintb/blog/main/atom.xml)
+<!--[rss](https://raw.githubusercontent.com/jmintb/blog/main/atom.xml) -->
 [mastodon](https://hachyderm.io/@jmintb)
 [github](https://github.com/jmintb)
 [youtube](https://www.youtube.com/channel/UCiktIroKtzNNLqyRgPxvnfQ)
