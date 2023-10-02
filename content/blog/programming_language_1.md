@@ -3,11 +3,6 @@ title = "Building a programming language with Rust and MLIR part 1: pest the par
 date = 2023-07-17
 +++
 
-Before diving in, I want to make it clear that I am not(yet) an expert in compiler and language development. I have a bit of experience
-from my bachelor project which involved implementing a JIT compiler for a language developed by my university. This experience made me hungry
-for more and served as inspiration for all sorts of ideas I want to try out. I will make plenty of mistakes and have to learn along the way.
-By documentating the process you can learn from my mistakes as well :)
-
 ## Overview
 
 This blog post is the first in (hopefully) a series on building and designing a programming language. For now the primary
@@ -34,6 +29,11 @@ This should be conceptually simple enough to wrap our heads around but involved 
 This first post will focus on the defining a grammar powerful enough for `prinln("Hello World!")` and generating a parser. A small introduction to compiler development
 will precede the parser development, to help provide general compiler intuition for the uninitiated.
 
+Before diving in, I want to make it clear that I am not(yet) an expert in compiler and language development. I have a bit of experience
+from my bachelor project which involved implementing a JIT compiler for a language developed by my university. This experience made me hungry
+for more and served as inspiration for all sorts of ideas I want to try out. I will make plenty of mistakes and have to learn along the way.
+By documentating the process you can learn from my mistakes as well :)
+
 Lets go!
 
 ## An introduction to compiling programming languages
@@ -43,22 +43,22 @@ If not then you have my respect for starting your journey with how to build a pr
 
 Both compiled and interpreted languages are quite common today. For example Python is a popular interpreted language and Rust is a compiled language.
 We won't go deep into interpreted languages but the short version is, instead of preparing machine instructions a head of time, they are generated on
-the fly as new code is fed to the interpreter. A longer explanation is found [here](https://en.wikipedia.org/wiki/Interpreter_(computing). One advantage
-here is that code can be run immediately without the need to invoke a compiler. Two major disadvantages are poor performance and no compile time checks, for
-example like checking types. 
+the fly as new code is fed to the interpreter. A longer explanation is found [here](https://en.wikipedia.org/wiki/Interpreter_(computing)). One advantage
+here is that code can be run immediately without the need to invoke a compiler. This often results in poorer performance an less or no type checking at all.
 
 We will be focusing on the design and implementation of a compiled language.
 I am confident that a [just in time(JIT)](https://en.wikipedia.org/wiki/Just-in-time_compilation) option will be 
-sufficient to support dynamic/scripting purposes. This will also force us to keep compile times low, win win.
+sufficient to support dynamic/scripting purposes. This will also force us to keep compile times low, win win. Ideally our compiler will be fast enough that normal 
+ahead of time compilation is fast enough to emulate a scripting experience as well.
 
-What is a compiler?
+We are going to be implementing a compiler so it is important to understand what a compiler is.
 
-The goal is to take input, often in the form of high level program, think Rust, C, Java etc and lower it to a different 
-and hopefully well optimized representation that can be executed in some target environment. For general purpose programming languages this
- will often be some type of machine code that the target environment can execute like an X86 processor or virtual machine like the [JVM](https://en.wikipedia.org/wiki/Java_virtual_machine).  
+I think compilers can take many forms not just related to programming languages. To keep things simple we will focus on programming languages.
+The goal of a compiler is to take input and lower it to a different  and hopefully well optimized representation that can be executed in some target environment. You can think of C being compiled to
+machine code or Java being compiled to bytecode which the  [JVM](https://en.wikipedia.org/wiki/Java_virtual_machine) can execute. 
 
 This will usually involve parsing the input to build an abstract syntax tree (AST), lowering to some intermediate representation or multiple intermediate representations 
-until we end up with a representation the target environment can execute. 
+until we end up with a representation the target environment can execute. Different intermediate representations will often allow for different optimizations or checks to be performed.
 
 We will start with at the beginning, parsing our input.
 
@@ -68,16 +68,14 @@ The first step in our compiler pipeline is the parser. This step will build an A
 We could implement our own lexer, and for educational purposes I think that is a good exercise. However I will be using
 the PEG parsing crate [pest](https://pest.rs/), it is an incredible tool for generating a parser based on a PEG grammar in Rust.
 This also forces us to provide a specification for our language in the form of a grammar, win win. The grammar syntax
-can be a bit daunting at first. Lets develop at simple grammar that will be sufficient.
+can be a bit daunting at first.
 
 To parse `println("Hello World!")` we need a few pieces of syntax in our grammar. Function calls, identifiers and values in the form of strings. 
-For now print will be a built in provided by the compiler, so we do not need syntax for declaring functions, only calling them.
-
-Pest provides helpful builtins for common string related cases.
+For now will be a built in provided by the compiler, so we do not need syntax for declaring functions, only calling them.
 
 Lets define strings first, we will start with the string defined for pest's JSON [example](https://pest.rs/book/examples/json.html) and strip it down a bit.
 
-Our grammar now looks like this, we will initialize a Rust project in a moment:
+Our grammar now looks like this:
 
 ```
 // grammar.pest
@@ -97,7 +95,6 @@ grammar. Unless you are in the habit of writing grammars often you will want to 
 [here](https://pest.rs/book/grammars/grammars.html) to familiarize your self with the options. 
 
 We now have three rules, one for single characters `char`, one for the string contents `inner` and one for the whole string surrounded by double quotes `string`.
-We won't cover everything pest can do but breaking down our grammar hopefully provides a good starting point. 
 
 The `char` rule uses the [`any character but`](https://pest.rs/book/grammars/syntax.html#predicates) idiom. 
 In our case this means if the following characters is not `"` or `\` consume one character.
