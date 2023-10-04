@@ -7,8 +7,7 @@ date = 2023-07-17
 
 This blog post is the first in (hopefully) a series on building and designing a programming language. For now the primary
 motivation is to satisfy an urge I have To dig my teeth into language + compiler design and implementation.
-I have some existing ideas for the language I plan to build, those will get a separate post. for I will focus on getting 
-the practical setup out of the way.
+I have some existing ideas for the language I plan to build, those will get a separate post.
 
 The first couple of posts will serve as a sort of tutorial/introduction to the practical and theoretical aspects using the tools I have chosen (Rust, MLIR and pest).
 Once the foundations have been set, I will start designing and implementing more involved aspects specific to the my language. I really need to find a name. 
