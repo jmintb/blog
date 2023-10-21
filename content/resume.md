@@ -1,19 +1,16 @@
 +++
-title = "About"
-date = 2023-07-17
+title = "Resume"
+date = 2023-10-21
 +++
 
-Hi, I am Jessie.
-
-### Projects
-
-
-### Resume
 
 Name: Jessie Chatham Spencer
-Github: https://github.com/jmintb
-Blog: https://www.jessiecspencer.com/
-Email: jessie@jessiecspencer.com
+
+Github: [jmintb](https://github.com/jmintb)
+
+Blog: [jessiecspencer.com](https://www.jessiecspencer.com/)
+
+Email: <jessie@jessiecspencer.com>
 
 **Summary**:
 
