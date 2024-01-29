@@ -23,7 +23,7 @@ Most of the code I write these days is in Rust.
 ### Formal Education
 
 - Bachelors in CS at Aarhus University
-- Masters in CS at Aarhus University (I am currently in the last semester)
+- Masters in CS at Aarhus University (Just graduated January 2024)
 
 #### Academic Highlights
 
